@@ -41,11 +41,36 @@ static int gettok() {
         IdentifierStr = LastChar;
         while (isalnum((LastChar = getchar())))
             IdentifierStr += LastChar;
+
+        if (IdentifierStr == "def")
+            return tok_def;
+        if(IdentifierStr == "extern")
+            return tok_extern;
+        return tok_identifier;
+    }
+    if (isdigit(LastChar) || LastChar == '.') {
+        // Number: [0-9]+
+        std::string NumStr;
+        do {
+            NumStr += LastChar;
+            LastChar = getchar();
+        } while (isdigit(LastChar) || LastChar == '.');
+        NumVal = strtod(NumStr.c_str(),  nullptr);
+        return tok_number;
     }
 
-    if (IdentifierStr == "def")
-        return tok_def;
-    if(IdentifierStr == "extern")
-        return tok_extern;
-    return tok_identifier;
+    if (LastChar == '#') {
+        // comment until the end of the line.
+        do 
+            LastChar = getchar();
+        while(LastChar != EOF && LastChar != '\n' && LastChar != '\r');
+        if (LastChar != EOF) return gettok();
+    }
+    // Check for the end of file. Don't eat the EOF.
+    if (LastChar == EOF)
+        return tok_eof;
+    // Otherwise, just return the character as its ascii value
+    int thisChar = LastChar;
+    LastChar = getchar();
+    return thisChar;
 }
