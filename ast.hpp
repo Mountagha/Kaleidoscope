@@ -1,4 +1,5 @@
 #include <string>
+#include <memory>
 
 /// Express AST - Base class for all expressions nodes.
 class ExprAST {
@@ -19,5 +20,16 @@ class VariableExprAST : public ExprAST {
 
     public:
         VariableExprAST(const std::string &name) : Name(name) {}
+};
+
+/// BinaryExprAST - Expression class for functions calls.
+class BinaryExprAST : public ExprAST {
+    char Op;
+    std::unique_ptr<ExprAST> LHS, RHS;
+    public:
+        BinaryExprAST(char op, std::unique_ptr<ExprAST> lhs, 
+                    std::unique_ptr<ExprAST> rhs)
+        : Op(op), LHS(std::move(lhs)), RHS(std::move(rhs)) {}
+
 };
 
