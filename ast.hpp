@@ -33,3 +33,10 @@ class BinaryExprAST : public ExprAST {
 
 };
 
+class CallExprAST : public ExprAST {
+    std::string callee;
+    std::vector<std::unique_ptr<ExprAST>> Args;
+    public:
+        CallExprAST(const std::string &callee, std::vector<std::unique_ptr<ExprAST>> args)
+        : callee(callee), Args(std::move(args))
+};
