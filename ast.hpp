@@ -34,10 +34,37 @@ class BinaryExprAST : public ExprAST {
 
 };
 
+/// CallExprAST - Expression class for function calls.
 class CallExprAST : public ExprAST {
     std::string Callee;
     std::vector<std::unique_ptr<ExprAST>> Args;
     public:
         CallExprAST(const std::string &callee, std::vector<std::unique_ptr<ExprAST>> args)
         : Callee(callee), Args(std::move(args)) {}
+};
+
+/// PrototypeAST - This class represents the "prototype" for a function
+/// which captures its name, and its argument names (thus implicitly the number of arguments 
+/// the function takes)
+
+class PrototypeAST {
+    std::string Name;
+    std::vector<std::string> Args;
+
+    public:
+        PrototypeAST(const std::string &name, std::vector<std::string> Args)
+            : Name(name), Args(std::move(Args)) {}
+        
+        const std::string &getName() const { return Name; }
+};
+
+/// FunctionAST - this class represents a function defintion itself.
+class FunctionAST {
+    std::unique_ptr<PrototypeAST> Proto;
+    std::unique_ptr<ExprAST> Body;
+
+    public:
+        FunctionAST(std::unique_ptr<PrototypeAST> proto, 
+                    std::unique_ptr<ExprAST> body)
+            : Proto(std::move(Proto)), Body(std::move(Body)) {}
 };
