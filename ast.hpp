@@ -2,6 +2,8 @@
 #include <memory>
 #include <vector>
 
+#include "lexer.hpp"
+
 /// Express AST - Base class for all expressions nodes.
 class ExprAST {
     public:
@@ -68,3 +70,9 @@ class FunctionAST {
                     std::unique_ptr<ExprAST> body)
             : Proto(std::move(Proto)), Body(std::move(Body)) {}
 };
+
+/// Parser
+static int curTok;
+static int getNetToken() {
+    return curTok = gettok();
+}
