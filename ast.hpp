@@ -73,6 +73,25 @@ class FunctionAST {
 
 /// Parser
 static int curTok;
-static int getNetToken() {
+static int getNextToken() {
     return curTok = gettok();
 }
+
+// / * - These are little helper functions for error handling.
+std::unique_ptr<ExprAST> LogError(const char* str) {
+    fprintf(stderr, "LogError: %s\n", str);
+    return nullptr;
+}
+
+std::unique_ptr<PrototypeAST> LogErrorP(const char* str) {
+    LogError(str);
+    return nullptr;
+}
+
+/// number ::= number
+static std::unique_ptr<ExprAST> ParseNumberExpr() {
+    auto result = std::make_unique<NumberExprAST>(NumVal);
+    getNextToken(); // consume the next token
+    return std::move(result);
+}
+
