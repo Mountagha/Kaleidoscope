@@ -95,3 +95,16 @@ static std::unique_ptr<ExprAST> ParseNumberExpr() {
     return std::move(result);
 }
 
+/// parenexpr ::= '(' expression ')'
+static std::unique_ptr<ExprAST> ParseParenExpr() {
+    getNextToken() // eat (.
+    auto V = ParseExpression();
+    if (!V) {
+        return nullptr;
+    }
+    if (curTok != ')') 
+        return LogError("expected ')'. ");
+    getNextToken();
+    return V;
+
+}
