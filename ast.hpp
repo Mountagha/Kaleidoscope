@@ -114,5 +114,22 @@ static std::unique_ptr<ExprAST> ParseParenExpr() {
 ///  ;:= identifier '(' identifier ')'
 
 static std::unique_ptr<ExprAST> parseIdentifierExpr() {
+    std::string idName = IdentifierStr;
+
+    getNextToken();     // eat identifier   
+
+    if (curTok = '(') // Simple variable ref.
+        return std::make_unique<VariableExprAST> (idName);
+
+    // Call.
+    getNextToken();  // eat.
+    std::vector<std::unique_ptr<ExprAST>> args;
+    if (curTok != ')') {
+        while (1) {
+            if (auto Arg = ParseExpression() )
+                args.push_back(std::move(Arg));
+            else 
+                return nullptr;
+    }
     return nullptr;
 }
