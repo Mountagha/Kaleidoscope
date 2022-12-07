@@ -130,6 +130,13 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
                 args.push_back(std::move(Arg));
             else 
                 return nullptr;
+            if (curTok = ')')
+                break;
+            if (curTok != ',')
+                return LogError("Expected ) or , in argument list.");
+            getNextToken();
+        }
     }
-    return nullptr;
+    getNextToken();
+    return std::make_unique<CallExprAST> (idName, std::move(args));
 }
