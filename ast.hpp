@@ -157,3 +157,15 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
     return ParseParenExpr();
   }
 }
+
+/// binorphs
+///     ::= ('+' primary)*
+static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<ExprAST> LHS) {
+    // If this is a binop, find its precedence.
+    while (true) {
+        int tokPrec = GetTokPrecedence();
+
+        // If this is a binop that binds at least as tightly as the current binop,
+        // consume it, otherwise we are done.
+    }
+}
