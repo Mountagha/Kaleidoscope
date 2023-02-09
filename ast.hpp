@@ -178,7 +178,21 @@ static int getTokPrecedence() {
 static std::unique_ptr<ExprAST> ParseExpression() {
     auto lhs = ParsePrimary();
     if (!lhs) return nullptr;
-    return parseBinOpRHS(0, std::move(LHS));
+    return parseBinOpRHS(0, std::move(lhs));
+}
+
+/// binorphs '
+/// ::= ('+' primary)*
+static std::unique_ptr<ExprAST> parseBinOpRHS(int exprPrec, std::unique_ptr<ExprAST> lhs) {
+    // If this is a binop, find its precedence.
+    while (true) {
+        int tokPrec = getTokPrecedence();
+
+        // If this a binop that binds at least as tightly as the current binop,
+        // consume it, otherwise we are done.
+        if (tokPrec < exprPrec) return lhs;
+    }
+    
 }
 
 int main() {
