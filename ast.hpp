@@ -192,6 +192,18 @@ static std::unique_ptr<ExprAST> parseBinOpRHS(int exprPrec, std::unique_ptr<Expr
         // consume it, otherwise we are done.
         if (tokPrec < exprPrec) return lhs;
     }
+    // okay, we know this is a binop.
+    int binOps = curTok;
+    getNextToken(); // eat binop
+
+    // Parse the primary expression after the binary operator.
+    auto rhs = ParsePrimary();
+    if (!rhs) return nullptr;
+
+    // If binOp binds less tightly with RHS than the operator after RHS, let
+    // the pending operator take RHS as LHS.
+    int nextPrec = getTokPrecedence();
+    // ....
     
 }
 
