@@ -173,13 +173,6 @@ static int getTokPrecedence() {
     return tokPrec;
 }
 
-/// expression 
-/// ::= primary binoprhs
-static std::unique_ptr<ExprAST> ParseExpression() {
-    auto lhs = ParsePrimary();
-    if (!lhs) return nullptr;
-    return parseBinOpRHS(0, std::move(lhs));
-}
 
 /// binorphs '
 /// ::= ('+' primary)*
@@ -191,20 +184,74 @@ static std::unique_ptr<ExprAST> parseBinOpRHS(int exprPrec, std::unique_ptr<Expr
         // If this a binop that binds at least as tightly as the current binop,
         // consume it, otherwise we are done.
         if (tokPrec < exprPrec) return lhs;
-    }
-    // okay, we know this is a binop.
-    int binOps = curTok;
-    getNextToken(); // eat binop
-
-    // Parse the primary expression after the binary operator.
-    auto rhs = ParsePrimary();
-    if (!rhs) return nullptr;
-
-    // If binOp binds less tightly with RHS than the operator after RHS, let
-    // the pending operator take RHS as LHS.
-    int nextPrec = getTokPrecedence();
-    // ....
     
+        // okay, we know this is a binop.
+        int binOps = curTok;
+        getNextToken(); // eat binop
+
+        // Parse the primary expression after the binary operator.
+        auto rhs = ParsePrimary();
+        if (!rhs) return nullptr;
+
+        // If binOp binds less tightly with RHS than the operator after RHS, let
+        // the pending operator take RHS as LHS.
+        int nextPrec = getTokPrecedence();
+        if (tokPrec < nextPrec) {
+            rhs = parseBinOpRHS(tokPrec + 1, std::move(rhs));
+            if (!rhs) return nullptr;
+        }
+        
+        // Merge LHS/RHS
+        lhs = std::make_unique<BinaryExprAST>(binOps, std::move(lhs), std::move(rhs));
+    }
+    
+}
+
+/// expression 
+/// ::= primary binoprhs
+static std::unique_ptr<ExprAST> ParseExpression() {
+    auto lhs = ParsePrimary();
+    if (!lhs) return nullptr;
+    return parseBinOpRHS(0, std::move(lhs));
+}
+
+/// prototype
+/// ::= id '(' id* ')'
+static std::unique_ptr<PrototypeAST> parsePrototype() {
+    if (curTok != tok_identifier)
+        LogErrorP("Expected function name in prototype");
+
+    std::string fnName = IdentifierStr;
+    getNextToken();
+
+    if (curTok != '(')
+        return LogErrorP("Expected '(' in prototype");
+    
+    std::vector<std::string> argNames;
+    while (getNextToken() == tok_identifier) {
+        argNames.push_back(IdentifierStr);
+    }
+    if (curTok != ')')
+        return LogErrorP("Expected ')' in prototype");
+
+    // success.
+    getNextToken(); // eat ')'.
+    return std::make_unique<PrototypeAST>(fnName, std::move(argNames));
+}
+
+/// defintion ::= 'def' prototype expression
+static std::unique_ptr<FunctionAST> parseDefintion() {
+    getNextToken(); // eat def.
+    auto proto = parsePrototype();
+    if (!proto) return nullptr;
+    if (auto E = ParseExpression()) 
+        return std::make_unique<FunctionAST>(std::move(proto), std::move(E));
+    return nullptr;
+}
+
+// toplevelexpr ::= expression
+static std::unique_ptr<FunctionAST> parseTopLevelExpr() {
+
 }
 
 int main() {
