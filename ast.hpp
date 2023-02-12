@@ -7,7 +7,7 @@
 /// Express AST - Base class for all expressions nodes.
 class ExprAST {
     public:
-        virtual ~ExprAST() {}
+        virtual ~ExprAST() = default;
 };
 
 /// NumberExprAST - Expression class for numeric literals like "1.0"
@@ -68,7 +68,7 @@ class FunctionAST {
     public:
         FunctionAST(std::unique_ptr<PrototypeAST> proto, 
                     std::unique_ptr<ExprAST> body)
-            : Proto(std::move(Proto)), Body(std::move(Body)) {}
+            : Proto(std::move(proto)), Body(std::move(body)) {}
 };
 
 /// Parser

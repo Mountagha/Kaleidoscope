@@ -48,13 +48,23 @@ static int gettok() {
             return tok_extern;
         return tok_identifier;
     }
-    if (isdigit(LastChar) || LastChar == '.') {
+    if (isdigit(LastChar)) {
         // Number: [0-9]+
         std::string NumStr;
         do {
             NumStr += LastChar;
             LastChar = getchar();
-        } while (isdigit(LastChar) || LastChar == '.');
+        } while (isdigit(LastChar));
+
+        // look for a fractional part.
+        if (LastChar == '.')
+            NumStr += LastChar;
+
+        // consume the decimal part.
+        while(isdigit(LastChar)) {
+            NumStr += LastChar;
+            LastChar = getchar();
+        }
         NumVal = strtod(NumStr.c_str(),  nullptr);
         return tok_number;
     }
