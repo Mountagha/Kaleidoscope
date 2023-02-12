@@ -1,9 +1,96 @@
 #include <string>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
-#include "lexer.hpp"
 
+//===--------------------------------------------------------------------------===//
+// lexer
+//===--------------------------------------------------------------------------===//
+
+// The lexer returns tokens [0-255] if it is an unknown character, otherwise one 
+// of these for known things.
+
+enum Token {
+    tok_eof = -1,
+
+    // commands
+    tok_def = -2,
+    tok_extern = -3,
+
+    // primary
+    tok_identifier = -4,
+    tok_number = -5
+};
+
+static std::string IdentifierStr; // Filled in if tok_identifier
+static double NumVal;   // Filled in if tok_number
+
+// gettok - Return the next token from standard input.
+static int gettok() {
+    static int LastChar = ' ';
+
+    // Skip any whitespace.
+    while(isspace(LastChar))
+        LastChar = getchar();
+    
+    if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
+        IdentifierStr = LastChar;
+        while (isalnum((LastChar = getchar())))
+            IdentifierStr += LastChar;
+
+        if (IdentifierStr == "def")
+            return tok_def;
+        if(IdentifierStr == "extern")
+            return tok_extern;
+        return tok_identifier;
+    }
+    if (isdigit(LastChar)) {
+        // Number: [0-9]+
+        std::string NumStr;
+        do {
+            NumStr += LastChar;
+            LastChar = getchar();
+        } while (isdigit(LastChar));
+
+        // look for a fractional part.
+        if (LastChar == '.')
+            NumStr += LastChar;
+
+        // consume the decimal part.
+        while(isdigit(LastChar)) {
+            NumStr += LastChar;
+            LastChar = getchar();
+        }
+        NumVal = strtod(NumStr.c_str(),  nullptr);
+        return tok_number;
+    }
+
+    if (LastChar == '#') {
+        // comment until the end of the line.
+        do 
+            LastChar = getchar();
+        while(LastChar != EOF && LastChar != '\n' && LastChar != '\r');
+        if (LastChar != EOF) return gettok();
+    }
+    // Check for the end of file. Don't eat the EOF.
+    if (LastChar == EOF)
+        return tok_eof;
+    // Otherwise, just return the character as its ascii value
+    int thisChar = LastChar;
+    LastChar = getchar();
+    return thisChar;
+}
+
+//===--------------------------------------------------------------------------===//
+// Abstract Syntax Tree (aka Parse Tree)
+//===--------------------------------------------------------------------------===//
+
+namespace {
 /// Express AST - Base class for all expressions nodes.
 class ExprAST {
     public:
@@ -71,10 +158,33 @@ class FunctionAST {
             : Proto(std::move(proto)), Body(std::move(body)) {}
 };
 
-/// Parser
+} // End of anonymous namespace.
+
+//===--------------------------------------------------------------------------===//
+// Parser 
+//===--------------------------------------------------------------------------===//
+/// CurTok/getNextToken - Provide a simple token buffer. Curtok is the current
+/// token the parser is looking at. getNextToken reads another token from the 
+/// lexer and updates curTok with its results.
+
 static int curTok;
 static int getNextToken() {
     return curTok = gettok();
+}
+
+/// BinopPrecedence - This holds the precedence for each binary operator that is defined
+static std::map<char, int> binopPrecedence;
+
+/// GetTokPrecedence - Get the precedence of the pending binary operator token.
+static int getTokPrecedence() {
+    if (!isascii(curTok)) {
+        return -1;
+    }
+
+    // make sure it's a declared binop
+    int tokPrec = binopPrecedence[curTok];
+    if (tokPrec <= 0) return -1;
+    return tokPrec;
 }
 
 // / * - These are little helper functions for error handling.
@@ -87,6 +197,8 @@ std::unique_ptr<PrototypeAST> LogErrorP(const char* str) {
     LogError(str);
     return nullptr;
 }
+
+static std::unique_ptr<ExprAST> ParseExpression();
 
 /// number ::= number
 static std::unique_ptr<ExprAST> ParseNumberExpr() {
@@ -118,7 +230,7 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
 
     getNextToken();     // eat identifier   
 
-    if (curTok = '(') // Simple variable ref.
+    if (curTok == '(') // Simple variable ref.
         return std::make_unique<VariableExprAST> (idName);
 
     // Call.
@@ -130,7 +242,7 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
                 args.push_back(std::move(Arg));
             else 
                 return nullptr;
-            if (curTok = ')')
+            if (curTok == ')')
                 break;
             if (curTok != ',')
                 return LogError("Expected ) or , in argument list.");
@@ -158,20 +270,6 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
   }
 }
 
-/// BinopPrecedence - This holds the precedence for each binary operator that is defined
-static std::map<char, int> binopPrecedence;
-
-/// GetTokPrecedence - Get the precedence of the pending binary operator token.
-static int getTokPrecedence() {
-    if (!isascii(curTok)) {
-        return -1;
-    }
-
-    // make sure it's a declared binop
-    int tokPrec = binopPrecedence[curTok];
-    if (tokPrec <= 0) return -1;
-    return tokPrec;
-}
 
 
 /// binorphs '
@@ -251,8 +349,77 @@ static std::unique_ptr<FunctionAST> parseDefintion() {
 
 // toplevelexpr ::= expression
 static std::unique_ptr<FunctionAST> parseTopLevelExpr() {
-
+    if (auto E = ParseExpression()) {
+        // Make an anonymous proto.
+        auto proto = std::make_unique<PrototypeAST>("__anon_expr", std::vector<std::string>());
+        return std::make_unique<FunctionAST>(std::move(proto), std::move(E));
+    }
+    return nullptr;
 }
+
+/// external ::= 'extern' prototype
+static std::unique_ptr<PrototypeAST> parseExtern() {
+    getNextToken();// eat extern.
+    return parsePrototype();
+} 
+
+//==--------------------------------------------------------------
+// Top-level parsing
+//==--------------------------------------------------------------
+static void handleDefinition() {
+    if(parseDefintion()) {
+        fprintf(stderr, "Parsed a function definition.\n");
+    } else {
+        // skip token for error recovery.
+        getNextToken();
+    }
+}
+
+static void handleExtern() {
+    if (parseExtern()) {
+        fprintf(stderr, "Parsed an extern.\n");
+    } else {
+        // skip token for error recovery.
+        getNextToken();
+    }
+}
+
+static void handleTopLevelExpression() {
+    if (parseTopLevelExpr()) {
+        fprintf(stderr, "Parsed a top-level expr.\n");
+    } else {
+        // skip token for error recovery
+        getNextToken();
+    }
+}
+
+/// top ::= definition | external | expression | ';'
+static void mainLoop() {
+    while (true) {
+        fprintf(stderr, "ready> ");
+        switch (curTok) {
+            case tok_eof:
+                return;
+            case ';':   // ignore top-level semicolons.
+                getNextToken();
+                break;
+            case tok_def:
+                handleDefinition();
+                break;
+            case tok_extern:
+                handleExtern();
+                break;
+            default:
+                handleTopLevelExpression();
+                break;
+        }
+    }
+}
+
+//==--------------------------------------------------------------
+// Main driver code.
+//==--------------------------------------------------------------
+
 
 int main() {
     // install standard binary operators.
@@ -260,5 +427,14 @@ int main() {
     binopPrecedence['<'] = 10;
     binopPrecedence['+'] = 20;
     binopPrecedence['-'] = 30;
-    binopPrecedence['*'] = 40;
+    binopPrecedence['*'] = 40;  // highest.
+
+    // Prime the first token.
+    fprintf(stderr, "ready> ");
+    getNextToken();
+
+    // Run the main 'Interpreter loop" now.
+    mainLoop();
+
+    return 0;
 }
