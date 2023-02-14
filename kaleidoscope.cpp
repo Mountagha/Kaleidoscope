@@ -411,14 +411,14 @@ Value* VariableExprAST::codegen() {
 
 Value* BinaryExprAST::codegen() {
     Value* L = LHS->codegen();
-    VALUE* R = RHS->codegen();
-    if (!L || !V) 
+    Value* R = RHS->codegen();
+    if (!L || !R) 
         return nullptr;
     switch(Op) {
         case '+':
-            return builder->createFAdd(L, R, "addtmp");
+            return builder->CreateFAdd(L, R, "addtmp");
         case '-':
-            return builder->createFSub(L, R, "subtmp");
+            return builder->CreateFSub(L, R, "subtmp");
         case '*':
             return builder->CreateFMul(L, R, "multmp");
         case '<':
@@ -439,7 +439,7 @@ Value* CallExprAST::codegen() {
     if (CalleeF->arg_size() != Args.size()) 
         return LogErrorV("Incorrect # of arguments passed.");
     std::vector<Value*> argsV;
-    for (unsigned i = 0; e = Args.size(); i != e; ++i) {
+    for (unsigned i = 0, e = Args.size(); i != e; ++i) {
         argsV.push_back(Args[i]->codegen());
         if (!Args.back())
             return nullptr;
@@ -484,9 +484,9 @@ Function *FunctionAST::codegen() {
         builder->CreateRet(RetVal);
 
         // Validate the generated code, checking for consistency.
-        VerifyFunction(*TheFunction)
+        verifyFunction(*TheFunction);
 
-        return TheFunction()
+        return TheFunction;
     }
 
     // Error reading body, remove function.
