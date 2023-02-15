@@ -1,3 +1,4 @@
+#include "../include/KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -6,9 +7,15 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/InsCombine/InsCombine.h"
+#include "llvm/Transform/Scalar.h"
+#include "llvm/Transform/Scalar/GVN.h"
 
 #include <algorithm>
 #include <string>
@@ -21,6 +28,7 @@
 #include <vector>
 
 using namespace llvm;
+using namespace llvm::orc;
 
 //===--------------------------------------------------------------------------===//
 // lexer
@@ -391,6 +399,10 @@ static std::unique_ptr<LLVMContext> theContext;
 static std::unique_ptr<Module> theModule;
 static std::unique_ptr<IRBuilder<>> builder;
 static std::map<std::string, Value* > namedValues;
+static std::unique_ptr<Legacy::FunctionPassManager> TheFPM;
+static std::unique_ptr<KaleidoscopeJIT> TheJIT;
+static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
+static ExitOnError ExitOnErr;
 
 Value* LogErrorV(const char *Str) {
     LogError(Str);
