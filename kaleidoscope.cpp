@@ -1,4 +1,4 @@
-#include "../include/KaleidoscopeJIT.h"
+//#include "../include/KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -13,9 +13,9 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/InsCombine/InsCombine.h"
-#include "llvm/Transform/Scalar.h"
-#include "llvm/Transform/Scalar/GVN.h"
+//#include "llvm/Transforms/InsCombine/InsCombine.h"
+//#include "llvm/Transform/Scalar.h"
+//#include "llvm/Transform/Scalar/GVN.h"
 
 #include <algorithm>
 #include <string>
@@ -28,7 +28,7 @@
 #include <vector>
 
 using namespace llvm;
-using namespace llvm::orc;
+//using namespace llvm::orc;
 
 //===--------------------------------------------------------------------------===//
 // lexer
@@ -399,8 +399,8 @@ static std::unique_ptr<LLVMContext> theContext;
 static std::unique_ptr<Module> theModule;
 static std::unique_ptr<IRBuilder<>> builder;
 static std::map<std::string, Value* > namedValues;
-static std::unique_ptr<Legacy::FunctionPassManager> TheFPM;
-static std::unique_ptr<KaleidoscopeJIT> TheJIT;
+//static std::unique_ptr<Legacy::FunctionPassManager> TheFPM;
+//static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 static ExitOnError ExitOnErr;
 
@@ -506,7 +506,7 @@ Function *FunctionAST::codegen() {
     return nullptr;
 }
 //==--------------------------------------------------------------
-// Top-level parsing
+// Top-level parsing and JIT Driver
 //==--------------------------------------------------------------
 
 static void InitializeModule() {
@@ -519,8 +519,12 @@ static void InitializeModule() {
 }
 
 static void handleDefinition() {
-    if(parseDefintion()) {
-        fprintf(stderr, "Parsed a function definition.\n");
+    if (auto FnAST = parseDefintion()) {
+        if (auto *FnIR = FnAST->codegen()) {
+            fprintf(stderr, "Read function definition:");
+            FnIR->print(errs());
+            fprintf(stderr, "\n");
+        }
     } else {
         // skip token for error recovery.
         getNextToken();
@@ -528,8 +532,12 @@ static void handleDefinition() {
 }
 
 static void handleExtern() {
-    if (parseExtern()) {
-        fprintf(stderr, "Parsed an extern.\n");
+    if (auto ProtoAST = parseExtern()) {
+        if (auto *FnIR = ProtoAST->codegen()) {
+            fprintf(stderr, "Read top-level expression:\n");
+            FnIR->print(errs());
+            fprintf(stderr, "\n");
+        }
     } else {
         // skip token for error recovery.
         getNextToken();
@@ -537,8 +545,16 @@ static void handleExtern() {
 }
 
 static void handleTopLevelExpression() {
-    if (parseTopLevelExpr()) {
-        fprintf(stderr, "Parsed a top-level expr.\n");
+    // Evaluate a top-level expression into an anonymous function.
+    if (auto FnAST = parseTopLevelExpr()) {
+        if (auto *FnIR = FnAST->codegen()) {
+            fprintf(stderr, "Read a top-level expression:\n");
+            FnIR->print(errs());
+            fprintf(stderr, "\n");
+
+            // Remove the anonymous expression.
+            FnIR->eraseFromParent();
+        }
     } else {
         // skip token for error recovery
         getNextToken();
