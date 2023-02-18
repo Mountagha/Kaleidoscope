@@ -258,7 +258,7 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
 
     getNextToken();     // eat identifier   
 
-    if (curTok == '(') // Simple variable ref.
+    if (curTok != '(') // Simple variable ref.
         return std::make_unique<VariableExprAST> (idName);
 
     // Call.
@@ -403,7 +403,7 @@ static std::map<std::string, Value* > namedValues;
 //static std::unique_ptr<Legacy::FunctionPassManager> TheFPM;
 //static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
-static ExitOnError ExitOnErr;
+//static ExitOnError ExitOnErr;
 
 Value* LogErrorV(const char *Str) {
     LogError(Str);
@@ -486,6 +486,7 @@ Function *FunctionAST::codegen() {
     
     // Create a new basic block to start insertion into.
     BasicBlock *BB = BasicBlock::Create(*theContext, "entry", TheFunction);
+    builder->SetInsertPoint(BB);
 
     // Record the function arguments in the NamedValues map.
     namedValues.clear();
