@@ -71,23 +71,23 @@ static int gettok() {
             return tok_extern;
         return tok_identifier;
     }
-    if (isdigit(LastChar)) {
-        // Number: [0-9]+
+    if (isdigit(LastChar) || LastChar == '.') {
+        // Number: [0-9.]+
         std::string NumStr;
         do {
             NumStr += LastChar;
             LastChar = getchar();
-        } while (isdigit(LastChar));
+        } while (isdigit(LastChar) || LastChar == '.');
 
         // look for a fractional part.
-        if (LastChar == '.')
-            NumStr += LastChar;
+        //if (LastChar == '.')
+        //    NumStr += LastChar;
 
         // consume the decimal part.
-        while(isdigit(LastChar)) {
-            NumStr += LastChar;
-            LastChar = getchar();
-        }
+        //while(isdigit(LastChar)) {
+        //    NumStr += LastChar;
+        //    LastChar = getchar();
+        //}
         NumVal = strtod(NumStr.c_str(),  nullptr);
         return tok_number;
     }
@@ -262,7 +262,7 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
         return std::make_unique<VariableExprAST> (idName);
 
     // Call.
-    getNextToken();  // eat.
+    getNextToken();  // eat (.
     std::vector<std::unique_ptr<ExprAST>> args;
     if (curTok != ')') {
         while (1) {
@@ -277,6 +277,7 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
             getNextToken();
         }
     }
+    // Eat the ')'.
     getNextToken();
     return std::make_unique<CallExprAST> (idName, std::move(args));
 }
@@ -312,7 +313,7 @@ static std::unique_ptr<ExprAST> parseBinOpRHS(int exprPrec, std::unique_ptr<Expr
         if (tokPrec < exprPrec) return lhs;
     
         // okay, we know this is a binop.
-        int binOps = curTok;
+        int binOp = curTok;
         getNextToken(); // eat binop
 
         // Parse the primary expression after the binary operator.
@@ -328,7 +329,7 @@ static std::unique_ptr<ExprAST> parseBinOpRHS(int exprPrec, std::unique_ptr<Expr
         }
         
         // Merge LHS/RHS
-        lhs = std::make_unique<BinaryExprAST>(binOps, std::move(lhs), std::move(rhs));
+        lhs = std::make_unique<BinaryExprAST>(binOp, std::move(lhs), std::move(rhs));
     }
     
 }
@@ -438,7 +439,7 @@ Value* BinaryExprAST::codegen() {
             // Convert bool 0/1 to double 0.0 or 1.0
             return builder->CreateUIToFP(L, Type::getDoubleTy(*theContext), "booltmp");
         default:
-            LogErrorV("Invalid binary operator");
+            return LogErrorV("Invalid binary operator");
     }
 }
 
@@ -534,7 +535,7 @@ static void handleDefinition() {
 static void handleExtern() {
     if (auto ProtoAST = parseExtern()) {
         if (auto *FnIR = ProtoAST->codegen()) {
-            fprintf(stderr, "Read top-level expression:\n");
+            fprintf(stderr, "Read extern:\n");
             FnIR->print(errs());
             fprintf(stderr, "\n");
         }
@@ -548,7 +549,7 @@ static void handleTopLevelExpression() {
     // Evaluate a top-level expression into an anonymous function.
     if (auto FnAST = parseTopLevelExpr()) {
         if (auto *FnIR = FnAST->codegen()) {
-            fprintf(stderr, "Read a top-level expression:\n");
+            fprintf(stderr, "Read top-level expression:\n");
             FnIR->print(errs());
             fprintf(stderr, "\n");
 
