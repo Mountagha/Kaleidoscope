@@ -13,7 +13,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/InsCombine/InsCombine.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transform/Scalar.h"
 #include "llvm/Transform/Scalar/GVN.h"
 
