@@ -1,4 +1,4 @@
-//#include "../include/KaleidoscopeJIT.h"
+#include "KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -28,7 +28,7 @@
 #include <vector>
 
 using namespace llvm;
-//using namespace llvm::orc;
+using namespace llvm::orc;
 
 //===--------------------------------------------------------------------------===//
 // lexer
@@ -400,13 +400,26 @@ static std::unique_ptr<LLVMContext> theContext;
 static std::unique_ptr<Module> theModule;
 static std::unique_ptr<IRBuilder<>> builder;
 static std::map<std::string, Value* > namedValues;
-//static std::unique_ptr<Legacy::FunctionPassManager> TheFPM;
-//static std::unique_ptr<KaleidoscopeJIT> TheJIT;
+static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
+static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
-//static ExitOnError ExitOnErr;
+static ExitOnError ExitOnErr;
 
 Value* LogErrorV(const char *Str) {
     LogError(Str);
+    return nullptr;
+}
+
+Function *getFunction(std::string name) {
+    // First, see if the function has already been added to the currrent module.
+    if (auto* F = theModule->getFunction(name))
+        return F;
+    // If not, check whether we can codegen the declaration from some existing 
+    // prototype.
+    auto FI = FunctionProtos.find(name);
+    if (FI != FunctionProtos.end())
+        return FI->second->codegen();
+    // if no existing prototype exists, return null.
     return nullptr;
 }
 
@@ -476,14 +489,14 @@ Function* PrototypeAST::codegen() {
 }
 
 Function *FunctionAST::codegen() {
-    // First, check for an existing function from a previous 'extern' declaration.
-    Function* TheFunction = theModule->getFunction(Proto->getName());
-
-    if (!TheFunction)
-        TheFunction = Proto->codegen();
+    // Transfer ownership of the prototype to the FunctionProtos map, but keep a 
+    // reference to it for use below.
+    auto &P = *Proto;
+    FunctionProtos[Proto->getName()] = std::move(Proto);
+    Function *TheFunction = getFunction(P.getName());
     if (!TheFunction)
         return nullptr;
-    
+
     // Create a new basic block to start insertion into.
     BasicBlock *BB = BasicBlock::Create(*theContext, "entry", TheFunction);
     builder->SetInsertPoint(BB);
@@ -500,6 +513,9 @@ Function *FunctionAST::codegen() {
         // Validate the generated code, checking for consistency.
         verifyFunction(*TheFunction);
 
+        // Run the optimizer on the function.
+        TheFPM->run(*TheFunction);
+
         return TheFunction;
     }
 
@@ -511,13 +527,29 @@ Function *FunctionAST::codegen() {
 // Top-level parsing and JIT Driver
 //==--------------------------------------------------------------
 
-static void InitializeModule() {
+static void InitializeModuleAndPassManager() {
     // Open a new context and module.
     theContext = std::make_unique<LLVMContext>();
     theModule = std::make_unique<Module>("my cool jit", *theContext);
+    theModule->setDataLayout(TheJIT->getDataLayout());
 
     // Create a new builder for the module.
     builder = std::make_unique<IRBuilder<>>(*theContext);
+
+    // Create a new pass manager attached to it.
+    TheFPM = std::make_unique<legacy::FunctionPassManager>(theModule.get());
+
+    // Do simple "peephole" optimization and bit-twiddling optzns.
+    TheFPM->add(createInstructionCombiningPass());
+    // Reassociate expressions.
+    TheFPM->add(createReassociatePass());
+    // Eliminate Common SubExpressions.
+    TheFPM->add(createGVNPass());
+    // Simplify the control flow graph (deleting unreachable blocks, etc).
+    TheFPM->add(createCFGSimplificationPass());
+
+    TheFPM->doInitialization();
+    
 }
 
 static void handleDefinition() {
@@ -526,6 +558,10 @@ static void handleDefinition() {
             fprintf(stderr, "Read function definition:");
             FnIR->print(errs());
             fprintf(stderr, "\n");
+            ExitOnErr(TheJIT->addModule(
+                ThreadSafeModule(std::move(theModule), std::move(theContext))
+            ))
+            InitializeModuleAndPassManager();
         }
     } else {
         // skip token for error recovery.
@@ -539,6 +575,7 @@ static void handleExtern() {
             fprintf(stderr, "Read extern:\n");
             FnIR->print(errs());
             fprintf(stderr, "\n");
+            FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
         }
     } else {
         // skip token for error recovery.
@@ -550,12 +587,25 @@ static void handleTopLevelExpression() {
     // Evaluate a top-level expression into an anonymous function.
     if (auto FnAST = parseTopLevelExpr()) {
         if (auto *FnIR = FnAST->codegen()) {
-            fprintf(stderr, "Read top-level expression:\n");
-            FnIR->print(errs());
-            fprintf(stderr, "\n");
+            // Create a ResourceTracker to track JIT'd memory allocated to our
+            // anonymous expression -- That way we can free it after executing.
+            auto RT = TheJIT->getMainJITDylib().createRessourceTracker();
 
-            // Remove the anonymous expression.
-            FnIR->eraseFromParent();
+            auto TSM = ThreadSafeModule(std::move(theModule), std::move(theContext));
+            ExitOnError(TheJIT->addModule(std::move(TSM), RT));
+            InitializeModuleAndPassManager();
+
+            // Search the JIT for the __anon_expr symbol.
+            auto ExprSymbol = ExitOnErr(TheJIT->lookup("__anon_expr"));
+
+            // Get the symbol's address and cast it to the right type (take no
+            // arguments, returns a double) so we can call it as a native function.
+            double (*FP)() = (double (*)())(intptr_t)ExprSymbol.getAddress();
+
+            fprintf(stderr, "Evaluated to %f\n", FP());
+
+            // Delete the anonymous expression module from the JIT.
+            ExitOnErr(RT->remove());
         }
     } else {
         // skip token for error recovery
@@ -587,6 +637,25 @@ static void mainLoop() {
 }
 
 //==--------------------------------------------------------------
+// "Library" functions that can be "extern'd" from user code.
+//==--------------------------------------------------------------
+#ifdef _WIN32
+#define DLLEXPORT __declspec(dllexport)
+#else
+#define DLLEXPORT
+#endif
+
+/// putchard - putchar that takesa double and returns 0.
+extern "C" DLLEXPORT double putchard(double X) {
+    fputc((char)X, stderr);
+    return 0;
+}
+
+/// printd - printf that takes a double prints it as "%f\n", returning 0.
+extern "C" DLLEXPORT double printd(double X) {
+    fprintf(stderr, "%f\n", X)
+}
+//==--------------------------------------------------------------
 // Main driver code.
 //==--------------------------------------------------------------
 
@@ -604,7 +673,7 @@ int main() {
     getNextToken();
 
     // Make the module, which holds all the code.
-    InitializeModule();
+    InitializeModuleAndPassManager();
 
     // Run the main 'Interpreter loop" now.
     mainLoop();
