@@ -14,8 +14,8 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transform/Scalar.h"
-#include "llvm/Transform/Scalar/GVN.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
 
 #include <algorithm>
 #include <string>
@@ -560,7 +560,7 @@ static void handleDefinition() {
             fprintf(stderr, "\n");
             ExitOnErr(TheJIT->addModule(
                 ThreadSafeModule(std::move(theModule), std::move(theContext))
-            ))
+            ));
             InitializeModuleAndPassManager();
         }
     } else {
@@ -589,10 +589,10 @@ static void handleTopLevelExpression() {
         if (auto *FnIR = FnAST->codegen()) {
             // Create a ResourceTracker to track JIT'd memory allocated to our
             // anonymous expression -- That way we can free it after executing.
-            auto RT = TheJIT->getMainJITDylib().createRessourceTracker();
+            auto RT = TheJIT->getMainJITDylib().createResourceTracker();
 
             auto TSM = ThreadSafeModule(std::move(theModule), std::move(theContext));
-            ExitOnError(TheJIT->addModule(std::move(TSM), RT));
+            ExitOnErr(TheJIT->addModule(std::move(TSM), RT));
             InitializeModuleAndPassManager();
 
             // Search the JIT for the __anon_expr symbol.
@@ -653,7 +653,8 @@ extern "C" DLLEXPORT double putchard(double X) {
 
 /// printd - printf that takes a double prints it as "%f\n", returning 0.
 extern "C" DLLEXPORT double printd(double X) {
-    fprintf(stderr, "%f\n", X)
+    fprintf(stderr, "%f\n", X);
+    return 0;
 }
 //==--------------------------------------------------------------
 // Main driver code.
@@ -671,6 +672,8 @@ int main() {
     // Prime the first token.
     fprintf(stderr, "ready> ");
     getNextToken();
+
+    TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
 
     // Make the module, which holds all the code.
     InitializeModuleAndPassManager();
