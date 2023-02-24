@@ -673,6 +673,7 @@ int main() {
     fprintf(stderr, "ready> ");
     getNextToken();
 
+    // creating the JIT.
     TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
 
     // Make the module, which holds all the code.
