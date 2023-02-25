@@ -458,7 +458,7 @@ Value* BinaryExprAST::codegen() {
 
 Value* CallExprAST::codegen() {
     // Look up the name in the global module table.
-    Function *CalleeF = theModule->getFunction(Callee);
+    Function *CalleeF = getFunction(Callee);
     if (!CalleeF) 
         return LogErrorV("unknown function referenced.");
     // If argument mismatch erro.
