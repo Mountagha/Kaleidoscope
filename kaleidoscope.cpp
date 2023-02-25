@@ -662,6 +662,11 @@ extern "C" DLLEXPORT double printd(double X) {
 
 
 int main() {
+
+    InitializeNativeTarget();
+    InitializeNativeTargetAsmPrinter();
+    InitializeNativeTargetAsmParser();
+
     // install standard binary operators.
     // 1 is lowest precedence.
     binopPrecedence['<'] = 10;
