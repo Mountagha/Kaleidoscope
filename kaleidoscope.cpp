@@ -6,6 +6,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -601,6 +602,7 @@ static void handleTopLevelExpression() {
             // Get the symbol's address and cast it to the right type (take no
             // arguments, returns a double) so we can call it as a native function.
             double (*FP)() = (double (*)())(intptr_t)ExprSymbol.getAddress();
+            //FnIR->print(errs());
 
             fprintf(stderr, "Evaluated to %f\n", FP());
 
