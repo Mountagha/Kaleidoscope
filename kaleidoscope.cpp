@@ -587,7 +587,7 @@ static void handleExtern() {
 static void handleTopLevelExpression() {
     // Evaluate a top-level expression into an anonymous function.
     if (auto FnAST = parseTopLevelExpr()) {
-        if (auto *FnIR = FnAST->codegen()) {
+        if (FnAST->codegen()) {
             // Create a ResourceTracker to track JIT'd memory allocated to our
             // anonymous expression -- That way we can free it after executing.
             auto RT = TheJIT->getMainJITDylib().createResourceTracker();
@@ -602,7 +602,6 @@ static void handleTopLevelExpression() {
             // Get the symbol's address and cast it to the right type (take no
             // arguments, returns a double) so we can call it as a native function.
             double (*FP)() = (double (*)())(intptr_t)ExprSymbol.getAddress();
-            //FnIR->print(errs());
 
             fprintf(stderr, "Evaluated to %f\n", FP());
 
