@@ -6,7 +6,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Instructions"
+//#include "llvm/IR/Instructions"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -420,6 +420,7 @@ Function *getFunction(std::string name) {
     auto FI = FunctionProtos.find(name);
     if (FI != FunctionProtos.end())
         return FI->second->codegen();
+
     // if no existing prototype exists, return null.
     return nullptr;
 }
@@ -556,7 +557,7 @@ static void InitializeModuleAndPassManager() {
 static void handleDefinition() {
     if (auto FnAST = parseDefintion()) {
         if (auto *FnIR = FnAST->codegen()) {
-            fprintf(stderr, "Read function definition:");
+            fprintf(stderr, "Read function definition:\n");
             FnIR->print(errs());
             fprintf(stderr, "\n");
             ExitOnErr(TheJIT->addModule(
