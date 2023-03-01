@@ -53,6 +53,8 @@ enum Token {
     tok_if = -6,
     tok_then = -7,
     tok_else = -8,
+    tok_for = -8,
+    tok_in = -10,
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -81,6 +83,10 @@ static int gettok() {
             return tok_then;
         if (IdentifierStr == "else")
             return tok_else;
+        if (IdentifierStr == "for")
+            return tok_for;
+        if (IdentifierStr == "in")
+            return tok_in;
         return tok_identifier;
 
     }
@@ -211,6 +217,20 @@ public:
     Value* codegen() override;
 };
 
+/// ForExprAST - Expression class for for/in.
+class ForExprAST : public ExprAST {
+    std::string VarName;
+    std::unique_ptr<ExprAST> Start, End, Step, Body;
+
+public:
+    ForExprAST(const std::string& varName, std::unique_ptr<ExprAST> start,
+            std::unique_ptr<ExprAST> end, std::unique_ptr<ExprAST> step, 
+            std::unique_ptr<ExprAST> body)
+        : VarName(varName), Start(std::move(start)), End(std::move(end)),
+          Step(std::move(step)). Body(std::move(body)) {}
+        
+    Value* codegen() override;
+};
 
 } // End of anonymous namespace.
 
@@ -350,6 +370,8 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
     return ParseParenExpr();
   case tok_if:
     return ParseIfExpr();
+  case tok_for:
+    return ParseForExpr();
   }
 }
 
@@ -438,6 +460,52 @@ static std::unique_ptr<FunctionAST> parseTopLevelExpr() {
         return std::make_unique<FunctionAST>(std::move(proto), std::move(E));
     }
     return nullptr;
+}
+
+/// forexpr ::= 'for' identifier '=' expr ',' expr (',', expr) ? 'in' expression
+static std::unique_ptr<ExprAST> ParseForExpr() {
+    getNextToken();     // eat the for.
+
+    if (curTok != tok_identifier)
+        return LogError("expected identifier after for");
+    std::string IdName = IdentifierStr;
+    getNextToken(); // eat identifier.
+
+    if (curTok != '=')
+        return LogError("expected '=' after for");
+    getNextToken(); // eat '='.
+
+    auto Start = ParseExpression();
+    if (Start)
+        return nullptr;
+    if (curTok != ',')
+        return LogError("expected ',' after for start value");
+    getNextToken();
+
+    auto End = ParseExpression();
+    if (!End)
+        return nullptr;
+    
+    // The step value is optional.
+    std::unique_ptr<ExprAST> Step;
+    if (curTok == ',') {
+        getNextToken();
+        Step = ParseExpression();
+        if (!Step)
+            return nullptr;
+    }
+
+    if (curTok != tok_in)
+        return LogError("expected 'in' after for");
+    getNextToken(); // eat 'in'.
+
+    auto Body = ParseExpression();
+    if (!Body)
+        return nullptr;
+    
+    return std::make_unique<ForExprAST>(IdName, std::move(Start),
+                                        std::move(End), std::move(Step),
+                                        std:move(Body));
 }
 
 /// external ::= 'extern' prototype
@@ -577,6 +645,61 @@ Function *FunctionAST::codegen() {
     // Error reading body, remove function.
     TheFunction->eraseFromParent();
     return nullptr;
+}
+
+Value* IfExprAST::codegen() {
+    Value* CondV = Cond->codegen();
+    if (!CondV)
+        return nullptr;
+    
+    // Convert condition to a bool by comparing non-equal to 0.0
+    CondV = builder->CreateFCmpONE(
+        CondV, ConstantFP::get(*theContext, APFloat(0.0), "ifcond");
+    )
+
+    Function *TheFunction = Builder->GetInsertBlock()->getParent();
+
+    // Create blocks for the then and else cases. Insert the 'then' block at the
+    // end of the function.
+    BasicBlock *ThenBB = 
+        BasicBlock::Create(*theContext, "then", TheFunction);
+    BasicBlock *ElseBB = BasicBlock::Create(*theContext, "else");
+    BasicBlock *MergeBB = BasicBlock::Create(*theContext, "ifcont");
+
+    builder->CreateCondBr(CondV, ThenBB, ElseBB);
+
+    // Emit then value.
+    builder->SetInsertPoint(ThenBB);
+
+    Value *thenV = Then->codegen();
+    if (!ThenV)
+        return nullptr;
+    
+    builder->CreateBr(MergeBB);
+    // Codegen of 'Then' can change the current block, update ThenBB for the PHI.
+    ThenBB = builder->GetInsertBlock();
+
+    // Emit the else block.
+    TheFunction->insert(TheFunction->end(), MergeBB);
+    builder->SetInsertPoint(MergeBB);
+    
+    Value* ElseV = Else->codegen();
+    if (!ElseV) 
+        return nullptr;
+    
+    builder->CreateBr(MergeBB);
+    // codegen of 'Else' can change the current block, update ElseBB for the PHI.
+    ElseBB = builder->GetInsertBlock();
+
+    // Emit merge block.
+    TheFunction->insert(TheFunction->end(), MergeBB);
+    builder->SetInsertPoint(MergeBB);
+    PHINode *PN = 
+        Builder->CreatePHI(Type::getDoubleTy(*theContext), 2, "iftmp");
+    PN->addIncoming(ThenV, ThenBB);
+    PN->addIncoming(ElseV, ElseBB);
+    return PN;
+
 }
 //==--------------------------------------------------------------
 // Top-level parsing and JIT Driver
