@@ -701,6 +701,39 @@ Value* IfExprAST::codegen() {
     return PN;
 
 }
+
+Value* ForExprAST::codegen() {
+    // Emit the start code first, without 'variable' in scope.
+    Value* StartVal = Start->codegen();
+    if (!StartVal)
+        return nullptr;
+    
+    // Make the new basic block for the loop header, inserting after current block.
+    Function* TheFunction = builder->GetInsertBlock()->getParent();
+    BasicBlock *PreHeaderBB = builder->GetInsertBlock();
+    BasicBlock *LoopBB = BasicBlock::Create(*theContext, "loop", TheFunction);
+
+    // Insert an explicit fall through from the current block to the LoopBB.
+    builder->CreateBr(LoopBB);
+
+    // Start insertion in LoopBB
+    builder->SetInsertPoint(LoopBB);
+
+    // Start the PHI node with an entry for Start.
+    PHINode *Variable = builder->CreatePHI(Type::getDoubleTy(*theContext), 2, VarName);
+    Variable->addIncoming(StartVal, PreHeaderBB);
+
+    // Within the loop, the variable is defined equal to the PHI node. If it 
+    // shadows an existing variable, we have to restore it, so save it now.
+    Value* OldVal = namedValues[VarName];
+    namedValues[VarName] = Variable;
+
+    // Emit the body of the loop. This, like any other expr, can change the
+    // current BB. Note that we ignore the value computed by the body, but don't 
+    // allow an error.
+    if(!Body->codegen())
+        return nullptr;
+}
 //==--------------------------------------------------------------
 // Top-level parsing and JIT Driver
 //==--------------------------------------------------------------
