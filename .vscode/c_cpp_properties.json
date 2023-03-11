@@ -7,14 +7,14 @@
       {
         "name": "Mac",
         "intelliSenseMode": "clang-x64",
-        "includePath": ["${myDefaultIncludePath}", "/another/path"],
+        "includePath": ["${myDefaultIncludePath}", "/opt/homebrew/Cellar/llvm/15.0.7_1/include/"],
         "macFrameworkPath": ["/System/Library/Frameworks"],
         "defines": ["FOO", "BAR=100"],
-        "forcedInclude": ["${workspaceFolder}/include/config.h"],
-        "compilerPath": "/usr/bin/clang",
+        "forcedInclude": [],
+        "compilerPath": "/usr/bin/clang++",
         "cStandard": "c11",
         "cppStandard": "c++17",
-        "compileCommands": "/path/to/compile_commands.json",
+        "compileCommands": "",
         "browse": {
           "path": ["${workspaceFolder}"],
           "limitSymbolsToIncludedHeaders": true,
