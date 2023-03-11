@@ -27,6 +27,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -171,7 +172,7 @@ class UnaryExprAST : public ExprAST {
 
     public:
         UnaryExprAST(char opcode, std::unique_ptr<ExprAST> operand)
-            : Opcode(opcode), Operand(std::move(Operand)) {}
+            : Opcode(opcode), Operand(std::move(operand)) {}
         
         Value* codegen() override;
 };
@@ -544,6 +545,7 @@ static std::unique_ptr<PrototypeAST> parsePrototype() {
                 return LogErrorP("Expected binary operator");
             FnName = "binary";
             FnName += (char)curTok;
+            std::cout << FnName;
             Kind = 2;
             getNextToken();
 
