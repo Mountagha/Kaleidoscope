@@ -1,7 +1,7 @@
 {
     "env": {
       "myDefaultIncludePath": ["${workspaceFolder}", "${workspaceFolder}/include"],
-      "myCompilerPath": "/usr/local/bin/gcc-7"
+      "myCompilerPath": "/usr/bin/gcc-7"
     },
     "configurations": [
       {
