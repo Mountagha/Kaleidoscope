@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <fstream>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -1032,7 +1033,7 @@ extern "C" DLLEXPORT double printd(double X) {
 //==--------------------------------------------------------------
 
 
-int main() {
+int main(int argc, char *argv[]) {
 
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
@@ -1045,6 +1046,16 @@ int main() {
     binopPrecedence['-'] = 30;
     binopPrecedence['*'] = 40;  // highest.
 
+    std::string line, code;
+    if (argc >= 2) {
+        std::ifstream myfile (argv[1]);
+        if (myfile.is_open()) {
+            while ( getline(myfile, line)) 
+            code += line;
+            myfile.close();
+        }
+        
+    }
     // Prime the first token.
     fprintf(stderr, "ready> ");
     getNextToken();
