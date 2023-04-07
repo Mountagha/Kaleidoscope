@@ -62,7 +62,7 @@ enum Token {
     tok_binary = -11,
     tok_unary = -12
 };
-
+int (*pGetchar)();  // a pointer to the function wheter getting it from file or stdin.
 static std::string IdentifierStr; // Filled in if tok_identifier
 static double NumVal;   // Filled in if tok_number
 static std::string code; // code read from a file instead of standard input 
@@ -71,7 +71,7 @@ static int curr_char_pos = 0; // the position of the current char in the code.
 static int _getchar() {
     if (curr_char_pos < code.length())
         return code[curr_char_pos++];
-    return -1;
+    return EOF;
 }
 // gettok - Return the next token from standard input.
 static int gettok() {
@@ -79,11 +79,11 @@ static int gettok() {
 
     // Skip any whitespace.
     while(isspace(LastChar))
-        LastChar = _getchar();
+        LastChar = (*pGetchar)();
     
     if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
         IdentifierStr = LastChar;
-        while (isalnum((LastChar = _getchar())))
+        while (isalnum((LastChar = (*pGetchar)())))
             IdentifierStr += LastChar;
 
         if (IdentifierStr == "def")
@@ -112,7 +112,7 @@ static int gettok() {
         std::string NumStr;
         do {
             NumStr += LastChar;
-            LastChar = _getchar();
+            LastChar = (*pGetchar)();
         } while (isdigit(LastChar) || LastChar == '.');
 
         // look for a fractional part.
@@ -131,7 +131,7 @@ static int gettok() {
     if (LastChar == '#') {
         // comment until the end of the line.
         do 
-            LastChar = _getchar();
+            LastChar = (*pGetchar)();
         while(LastChar != EOF && LastChar != '\n' && LastChar != '\r');
         if (LastChar != EOF) return gettok();
     }
@@ -140,7 +140,7 @@ static int gettok() {
         return tok_eof;
     // Otherwise, just return the character as its ascii value
     int thisChar = LastChar;
-    LastChar = _getchar();
+    LastChar = (*pGetchar)();
     return thisChar;
 }
 
@@ -1015,6 +1015,20 @@ static void mainLoop() {
     }
 }
 
+static void executeBlock() {
+    curTok = gettok();
+    while(true) {
+        switch (curTok) {
+            case  
+            /* code */
+            break;
+        
+        default:
+            break;
+        }
+    }
+}
+
 //==--------------------------------------------------------------
 // "Library" functions that can be "extern'd" from user code.
 //==--------------------------------------------------------------
@@ -1053,27 +1067,29 @@ int main(int argc, char *argv[]) {
     binopPrecedence['-'] = 30;
     binopPrecedence['*'] = 40;  // highest.
 
-    std::string line;
-    if (argc >= 2) {
-        std::ifstream myfile (argv[1]);
-        if (myfile.is_open()) {
-            std::cout << "file";
-            while (getline(myfile, line)) 
-                code += line;
-            myfile.close();
-        }
-        
-    }
-    std::cout << code;
-    // Prime the first token.
-    fprintf(stderr, "ready> ");
-    getNextToken();
+        // Prime the first token.
+    //fprintf(stderr, "ready> ");
+    //getNextToken();
 
     // creating the JIT.
     TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
 
     // Make the module, which holds all the code.
     InitializeModuleAndPassManager();
+
+    std::string line;
+    if (argc >= 2) {
+        std::ifstream myfile (argv[1]);
+        if (myfile.is_open()) {
+            while (getline(myfile, line)) 
+                code += line;
+            myfile.close();
+        }
+        pGetchar = &_getchar;
+    } else {
+        pGetchar = &getchar;
+    }
+    
 
     // Run the main 'Interpreter loop" now.
     mainLoop();
