@@ -449,6 +449,7 @@ static std::unique_ptr<ExprAST> ParseForExpr() {
 static std::unique_ptr<ExprAST> ParsePrimary() {
   switch (curTok) {
   default:
+    std::cout << curTok;
     return LogError("unknown token when expecting an expression");
   case tok_identifier:
     return parseIdentifierExpr();
@@ -995,7 +996,7 @@ static void handleTopLevelExpression() {
 /// top ::= definition | external | expression | ';'
 static void mainLoop() {
     while (true) {
-        fprintf(stderr, "ready> ");
+        //fprintf(stderr, "ready> ");
         switch (curTok) {
             case tok_eof:
                 return;
@@ -1011,20 +1012,6 @@ static void mainLoop() {
             default:
                 handleTopLevelExpression();
                 break;
-        }
-    }
-}
-
-static void executeBlock() {
-    curTok = gettok();
-    while(true) {
-        switch (curTok) {
-            case  
-            /* code */
-            break;
-        
-        default:
-            break;
         }
     }
 }
