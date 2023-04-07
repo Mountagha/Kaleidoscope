@@ -30,6 +30,8 @@
 #include <iostream>
 #include <fstream>
 
+//#define DEBUG     // for debug purporses.
+
 using namespace llvm;
 using namespace llvm::orc;
 
@@ -996,7 +998,7 @@ static void handleTopLevelExpression() {
 /// top ::= definition | external | expression | ';'
 static void mainLoop() {
     while (true) {
-        //fprintf(stderr, "ready> ");
+        fprintf(stderr, "ready> ");
         switch (curTok) {
             case tok_eof:
                 return;
@@ -1043,10 +1045,28 @@ extern "C" DLLEXPORT double printd(double X) {
 
 int main(int argc, char *argv[]) {
 
+    std::string line;
+    if (argc >= 2) {
+        std::ifstream myfile (argv[1]);
+        if (myfile.is_open()) {
+            while (getline(myfile, line)) 
+                code += line + '\n';
+            myfile.close();
+            pGetchar = &_getchar;
+#ifdef DEBUG
+            fprintf(stderr, "%s\n", code.c_str());
+#endif
+        } else {
+            fprintf(stderr, "file not found");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        pGetchar = &getchar;
+    }
+
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
     InitializeNativeTargetAsmParser();
-
     // install standard binary operators.
     // 1 is lowest precedence.
     binopPrecedence['<'] = 10;
@@ -1055,8 +1075,8 @@ int main(int argc, char *argv[]) {
     binopPrecedence['*'] = 40;  // highest.
 
         // Prime the first token.
-    //fprintf(stderr, "ready> ");
-    //getNextToken();
+    fprintf(stderr, "ready> ");
+    getNextToken();
 
     // creating the JIT.
     TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
@@ -1064,25 +1084,14 @@ int main(int argc, char *argv[]) {
     // Make the module, which holds all the code.
     InitializeModuleAndPassManager();
 
-    std::string line;
-    if (argc >= 2) {
-        std::ifstream myfile (argv[1]);
-        if (myfile.is_open()) {
-            while (getline(myfile, line)) 
-                code += line;
-            myfile.close();
-        }
-        pGetchar = &_getchar;
-    } else {
-        pGetchar = &getchar;
-    }
-    
-
     // Run the main 'Interpreter loop" now.
     mainLoop();
 
     // Print out all of the generated code.
+#ifdef DEBUG
+    fprintf(stderr, "\n===================================================\n");
     theModule->print(errs(), nullptr);
+#endif
 
     return 0;
 }
