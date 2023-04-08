@@ -310,8 +310,10 @@ std::unique_ptr<ExprAST> LogError(const char* str) {
     return nullptr;
 }
 
+#define LOG( message ) LogError(message)
+
 std::unique_ptr<PrototypeAST> LogErrorP(const char* str) {
-    LogError(str);
+    LOG(str);
     return nullptr;
 }
 
@@ -332,7 +334,7 @@ static std::unique_ptr<ExprAST> ParseParenExpr() {
         return nullptr;
     }
     if (curTok != ')') 
-        return LogError("expected ')'. ");
+        return LOG("expected ')'. ");
     getNextToken();
     return V;
 
@@ -362,7 +364,7 @@ static std::unique_ptr<ExprAST> parseIdentifierExpr() {
             if (curTok == ')')
                 break;
             if (curTok != ',')
-                return LogError("Expected ) or , in argument list.");
+                return LOG("Expected ) or , in argument list.");
             getNextToken();
         }
     }
@@ -380,14 +382,14 @@ static std::unique_ptr<ExprAST> ParseIfExpr() {
     if (!Cond)
         return nullptr;
     if (curTok != tok_then) 
-        return LogError("Expected 'then'.");
+        return LOG("Expected 'then'.");
     getNextToken();  // eat the then.
 
     auto Then = ParseExpression();
     if (!Then)
         return nullptr;
     if (curTok != tok_else) 
-        return LogError("Expected 'else'.");
+        return LOG("Expected 'else'.");
     
     getNextToken();
 
@@ -402,19 +404,19 @@ static std::unique_ptr<ExprAST> ParseForExpr() {
     getNextToken();     // eat the for.
 
     if (curTok != tok_identifier)
-        return LogError("expected identifier after for");
+        return LOG("expected identifier after for");
     std::string IdName = IdentifierStr;
     getNextToken(); // eat identifier.
 
     if (curTok != '=')
-        return LogError("expected '=' after for");
+        return LOG("expected '=' after for");
     getNextToken(); // eat '='.
 
     auto Start = ParseExpression();
     if (Start)
         return nullptr;
     if (curTok != ',')
-        return LogError("expected ',' after for start value");
+        return LOG("expected ',' after for start value");
     getNextToken();
 
     auto End = ParseExpression();
@@ -431,7 +433,7 @@ static std::unique_ptr<ExprAST> ParseForExpr() {
     }
 
     if (curTok != tok_in)
-        return LogError("expected 'in' after for");
+        return LOG("expected 'in' after for");
     getNextToken(); // eat 'in'.
 
     auto Body = ParseExpression();
@@ -451,8 +453,7 @@ static std::unique_ptr<ExprAST> ParseForExpr() {
 static std::unique_ptr<ExprAST> ParsePrimary() {
   switch (curTok) {
   default:
-    std::cout << curTok;
-    return LogError("unknown token when expecting an expression");
+    return LOG("unknown token when expecting an expression");
   case tok_identifier:
     return parseIdentifierExpr();
   case tok_number:
@@ -631,7 +632,7 @@ static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 static ExitOnError ExitOnErr;
 
 Value* LogErrorV(const char *Str) {
-    LogError(Str);
+    LOG(Str);
     return nullptr;
 }
 
