@@ -622,10 +622,19 @@ static std::unique_ptr<PrototypeAST> parseExtern() {
 // Code generation 
 //==--------------------------------------------------------------
 
+/// CreateEntryBlockAlloca - Create an alloca instruction in the entryb
+/// block of the function. This is used for mutable variables etc.
+
+static AllocaInst* CreateEntryBlockAlloca(Function* TheFunction, const std::string& VarName) {
+    IRBuilder<> TmpB(&TheFunction->getEntryBlock(),
+            TheFunction->getEntryBlock().begin());
+    return TmpB.CreateAlloca(Type::getDoubleTy(*theContext), nullptr, VarName);
+}
+
 static std::unique_ptr<LLVMContext> theContext;
 static std::unique_ptr<Module> theModule;
 static std::unique_ptr<IRBuilder<>> builder;
-static std::map<std::string, Value* > namedValues;
+static std::map<std::string, AllocaInst* > namedValues;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
@@ -656,10 +665,10 @@ Value* NumberExprAST::codegen() {
 
 Value* VariableExprAST::codegen() {
     // Look this variable up in the function.
-    Value* V = namedValues[Name];
-    if (!V)
+    AllocaInst* A = namedValues[Name];
+    if (!A)
         return LogErrorV("Unknown variable name.");
-    return V;
+    return builder->CreateLoad(A->getAllocatedType(), A, Name.c_str());
 }
 
 Value* BinaryExprAST::codegen() {
@@ -755,7 +764,13 @@ Function *FunctionAST::codegen() {
     // Record the function arguments in the NamedValues map.
     namedValues.clear();
     for (auto &Arg: TheFunction->args())
-        namedValues[std::string(Arg.getName())] = &Arg;
+        // Create an alloca for this variable.
+        AllocaInst* Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
+
+        // Store the initial value into the alloca.
+        builder->CreateStore(&Arg, Alloca);
+        
+        namedValues[std::string(Arg.getName())] = Alloca;
     
     if (Value* RetVal = Body->codegen()) {
         // finish off the function.
@@ -828,16 +843,42 @@ Value* IfExprAST::codegen() {
     return PN;
 
 }
+// Output for-loop as
+// var = alloca double
+// ...
+// start = startexpr
+// store start -> var
+// goto loop
+// loop:
+// ...
+// bodyexpr
+// ...
+// loopend:
+// step = stepexpr
+// endcond = endexpr
+// 
+// curvar = load var
+// nextvar = curvar + step
+// store nextvar -> var
+// br encond, loop, endloop
+// outloop
 
 Value* ForExprAST::codegen() {
+    Function *TheFunction = builder->GetInsertBlock()->getParent();
+
+    // Create an alloca for the variable in the entry block.
+    AllocaInst* Alloca = CreateEntryBlockAlloca(TheFunction, VarName);
+
     // Emit the start code first, without 'variable' in scope.
     Value* StartVal = Start->codegen();
     if (!StartVal)
         return nullptr;
     
+    // Store the value into the alloca.
+    builder->CreateStore(StartVal, Alloca);
+
+    
     // Make the new basic block for the loop header, inserting after current block.
-    Function* TheFunction = builder->GetInsertBlock()->getParent();
-    BasicBlock *PreHeaderBB = builder->GetInsertBlock();
     BasicBlock *LoopBB = BasicBlock::Create(*theContext, "loop", TheFunction);
 
     // Insert an explicit fall through from the current block to the LoopBB.
@@ -846,14 +887,10 @@ Value* ForExprAST::codegen() {
     // Start insertion in LoopBB
     builder->SetInsertPoint(LoopBB);
 
-    // Start the PHI node with an entry for Start.
-    PHINode *Variable = builder->CreatePHI(Type::getDoubleTy(*theContext), 2, VarName);
-    Variable->addIncoming(StartVal, PreHeaderBB);
-
     // Within the loop, the variable is defined equal to the PHI node. If it 
     // shadows an existing variable, we have to restore it, so save it now.
-    Value* OldVal = namedValues[VarName];
-    namedValues[VarName] = Variable;
+    AllocaInst* OldVal = namedValues[VarName];
+    namedValues[VarName] = OldVal;
 
     // Emit the body of the loop. This, like any other expr, can change the
     // current BB. Note that we ignore the value computed by the body, but don't 
@@ -872,20 +909,24 @@ Value* ForExprAST::codegen() {
         StepVal = ConstantFP::get(*theContext, APFloat(1.0));
     }
 
-    Value* NextVar = builder->CreateFAdd(Variable, StepVal, "nextvar");
-
     // Compute the end condition.
     Value *EndCond = End->codegen();
     if (!EndCond) 
         return nullptr;
-    
+
+    // Reload, increment, and restore the alloca. This handles the case where
+    // the body of the loop mutates the variable.
+    Value *CurVAr = 
+        builder->CreateLoad(Alloca->getAllocatedType(), Alloca, VarName.c_str());
+    Value* NextVar = builder->CreateFAdd(CurVAr, StepVal, "nextvar");
+    builder->CreateStore(NextVar, Alloca);
+
     // Convert condition to a bool by comparing non-equal to 0.0.
     EndCond = builder->CreateFCmpONE(
         EndCond, ConstantFP::get(*theContext, APFloat(0.0)), "loopcond"
     );
 
     // Create the "after loop" block and insert it.
-    BasicBlock *LoopEndBB = builder->GetInsertBlock();
     BasicBlock *AfterBB = BasicBlock::Create(*theContext, "afterloop", TheFunction);
 
     // Insert the conditional branch into the end of LoopEndBB.
@@ -893,9 +934,6 @@ Value* ForExprAST::codegen() {
 
     // Any new code will be inserted in AfterBB.
     builder->SetInsertPoint(AfterBB);
-
-    // Add a new entry to the PHI node for the backedge.
-    Variable->addIncoming(NextVar, LoopEndBB);
 
     // Restore the unshadowed variable.
     if (OldVal)
