@@ -1274,6 +1274,9 @@ int main(int argc, char *argv[]) {
     // Run the main 'Interpreter loop" now.
     mainLoop();
 
+    // Initialize all target registry etc.
+    InitializeAllTargets();
+
     // Print out all of the generated code.
 #ifdef DEBUG
     fprintf(stderr, "\n===================================================\n");
