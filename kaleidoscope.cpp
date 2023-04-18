@@ -1288,8 +1288,8 @@ int main(int argc, char *argv[]) {
     InitializeAllAsmParsers();
     InitializeAllAsmPrinters();
 
-    //auto TargetTriple = sys::getDefaultTargetTriple();
     auto TargetTriple = sys::getDefaultTargetTriple();
+    std::cout << TargetTriple;
     theModule->setTargetTriple(TargetTriple);
 
     std::string Error;
