@@ -1103,27 +1103,30 @@ static void InitializeModuleAndPassManager() {
     // Open a new module.
     theContext = std::make_unique<LLVMContext>();
     theModule = std::make_unique<Module>("my cool jit", *theContext);
-    theModule->setDataLayout(TheJIT->getDataLayout());
+    // theModule->setDataLayout(TheJIT->getDataLayout());
 
-    // Create a new builder for the module.
+    // // Create a new builder for the module.
+    // builder = std::make_unique<IRBuilder<>>(*theContext);
+
+    // // Create a new pass manager attached to it.
+    // TheFPM = std::make_unique<legacy::FunctionPassManager>(theModule.get());
+
+    // // Promote allocas to registers
+    // TheFPM->add(createPromoteMemoryToRegisterPass());
+
+    // // Do simple "peephole" optimization and bit-twiddling optzns.
+    // TheFPM->add(createInstructionCombiningPass());
+    // // Reassociate expressions.
+    // TheFPM->add(createReassociatePass());
+    // // Eliminate Common SubExpressions.
+    // TheFPM->add(createGVNPass());
+    // // Simplify the control flow graph (deleting unreachable blocks, etc).
+    // TheFPM->add(createCFGSimplificationPass());
+
+    // TheFPM->doInitialization();
+    
+    // Create a new builder for the module
     builder = std::make_unique<IRBuilder<>>(*theContext);
-
-    // Create a new pass manager attached to it.
-    TheFPM = std::make_unique<legacy::FunctionPassManager>(theModule.get());
-
-    // Promote allocas to registers
-    TheFPM->add(createPromoteMemoryToRegisterPass());
-
-    // Do simple "peephole" optimization and bit-twiddling optzns.
-    TheFPM->add(createInstructionCombiningPass());
-    // Reassociate expressions.
-    TheFPM->add(createReassociatePass());
-    // Eliminate Common SubExpressions.
-    TheFPM->add(createGVNPass());
-    // Simplify the control flow graph (deleting unreachable blocks, etc).
-    TheFPM->add(createCFGSimplificationPass());
-
-    TheFPM->doInitialization();
     
 }
 
@@ -1133,10 +1136,6 @@ static void handleDefinition() {
             fprintf(stderr, "Read function definition:\n");
             FnIR->print(errs());
             fprintf(stderr, "\n");
-            ExitOnErr(TheJIT->addModule(
-                ThreadSafeModule(std::move(theModule), std::move(theContext))
-            ));
-            InitializeModuleAndPassManager();
         }
     } else {
         // skip token for error recovery.
@@ -1161,27 +1160,7 @@ static void handleExtern() {
 static void handleTopLevelExpression() {
     // Evaluate a top-level expression into an anonymous function.
     if (auto FnAST = parseTopLevelExpr()) {
-        if (FnAST->codegen()) {
-            // Create a ResourceTracker to track JIT'd memory allocated to our
-            // anonymous expression -- That way we can free it after executing.
-            auto RT = TheJIT->getMainJITDylib().createResourceTracker();
-
-            auto TSM = ThreadSafeModule(std::move(theModule), std::move(theContext));
-            ExitOnErr(TheJIT->addModule(std::move(TSM), RT));
-            InitializeModuleAndPassManager();
-
-            // Search the JIT for the __anon_expr symbol.
-            auto ExprSymbol = ExitOnErr(TheJIT->lookup("__anon_expr"));
-
-            // Get the symbol's address and cast it to the right type (take no
-            // arguments, returns a double) so we can call it as a native function.
-            double (*FP)() = (double (*)())(intptr_t)ExprSymbol.getAddress();
-
-            fprintf(stderr, "Evaluated to %f\n", FP());
-
-            // Delete the anonymous expression module from the JIT.
-            ExitOnErr(RT->remove());
-        }
+        FnAST->codegen();
     } else {
         // skip token for error recovery
         getNextToken();
@@ -1273,7 +1252,7 @@ int main(int argc, char *argv[]) {
     getNextToken();
 
     // creating the JIT.
-    TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
+    //TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
 
     // Make the module, which holds all the code.
     InitializeModuleAndPassManager();
