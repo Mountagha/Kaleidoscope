@@ -7,9 +7,9 @@
       {
         "name": "Mac",
         "intelliSenseMode": "clang-x64",
-        "includePath": ["${myDefaultIncludePath}", "/opt/homebrew/opt/llvm/include"],
+        "includePath": ["${myDefaultIncludePath}", "/usr/lib/llvm-16/include"],
         //"includePath": ["${myDefaultIncludePath}", "/opt/homebrew/Cellar/llvm/16.0.1_1/include/"] 
-        "macFrameworkPath": ["/System/Library/Frameworks"],
+        // "macFrameworkPath": ["/System/Library/Frameworks"],
         "defines": ["FOO", "BAR=100"],
         "forcedInclude": [],
         "compilerPath": "/usr/bin/clang++",
